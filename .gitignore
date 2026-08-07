@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+
+# Local-only (dev tools/scratch, never pushed)
+redeploy.sh
+scratchpad
+
+# Local record, dormant
+archive/
+
+.vscode/
+*.swp
+.DS_Store
