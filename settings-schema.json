@@ -40,7 +40,7 @@
   },
   "hotkey": {
     "type": "keybinding",
-    "default": "",
+    "default": "<Shift><Super>f",
     "description": "Open the edit popup"
   },
 
