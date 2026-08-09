@@ -164,7 +164,7 @@ class FocalApplet extends Applet.TextIconApplet {
         // PopupMenuItem - PopupMenuItem grabs keyboard focus on hover (for
         // arrow-key menu navigation), which steals focus from the text entry.
         const confirmItem = new PopupMenu.PopupBaseMenuItem({ reactive: false });
-        const confirmLabel = mode === "direct" ? "Set Direct Text" : "Set Default Color";
+        const confirmLabel = "Apply";
         const confirmButton = new St.Button({ style_class: "focal-confirm-button", label: confirmLabel });
         confirmButton.connect("clicked", () => this._commitPopup());
         confirmItem.addActor(confirmButton, { expand: true, span: -1 });
