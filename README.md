@@ -31,6 +31,32 @@ Either way, the panel only ever shows your current focus - not your whole day, n
 
 No data collection, no telemetry, no network calls of any kind. In Calendar mode, the only outside communication is `calendar_helper.py` querying your system calendar (EDS) locally on your machine. The only things saved to disk are your applet settings and your current focus line/color, via Cinnamon's standard local settings storage - so it survives a restart, and nothing else is persisted or sent anywhere.
 
+## How to use it
+
+The steps below describe one way to use Focal - the suggested one - but the applet itself is generic: it just shows text, however you decide to set it.
+
+### What should the text be?
+
+The same guidance applies in both modes - in Calendar mode, this is what your event titles should look like. Keep it **short and about the goal, not the steps**: "monthly report" is shorter and less daunting than "type the numbers into a spreadsheet, verify them, add formulas...". If you need to show a subset of a bigger goal, something like "monthly report - information collection" works fine. This isn't about granularity - you have other systems for that. It's about deciding what you're focusing on right now, and staying honest with yourself about it.
+
+### In Direct mode
+
+The default, and probably the better starting point for most people.
+
+- **Decide** what you want to focus on.
+- **Click** the panel text (or hit the hotkey).
+- **Just start typing** - the box is already focused and preselected, no need to click into it or clear the old text first.
+- (Optionally change the text and/or background color too.)
+- **Hit Enter.**
+
+Then go focus on the thing you just said you're focusing on. If you stray, either get back to it or make a conscious decision to shift focus - and update the text to match. It's your time. You decide what you do with it. You're also free to change your mind. The only ask is that the text stays true so you're honest with yourself.
+
+### In Calendar mode
+
+Plan your day (or whatever cycle you work in) ahead of time in your system calendar, naming the blocks the way described above. This calendar is yours alone - not a list of commitments to anyone, not even to yourself - just a plan for how you intend to spend your time, one you're free to revise later. (If you already use the system calendar for other things, it's worth creating a separate calendar just for this and pointing Focal at it in Preferences.)
+
+Your events then show up on the applet as you move through them. If you stray, or plans just change, same principle as Direct mode: resist and get back on track, or make a conscious decision to change your plan and drag the blocks around in the calendar to reflect it.
+
 ## Layout
 
 - [`metadata.json`](metadata.json) - applet identity/version info Cinnamon reads.
