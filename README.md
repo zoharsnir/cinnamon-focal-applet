@@ -10,6 +10,8 @@
     - [In Calendar mode](#in-calendar-mode)
   - [Layout](#layout)
   - [Install (for local testing)](#install-for-local-testing)
+    - [Clone and install](#clone-and-install)
+    - [Update and reload after code changes](#update-and-reload-after-code-changes)
   - [License](#license)
 
 A simple panel text label you set yourself (optionally with a color) or point at your system calendar to show whatever event you're currently in.
@@ -86,25 +88,38 @@ Your events then show up on the applet as you move through them. If you stray, o
 
 ## Install (for local testing)
 
+❗ Don't copy paste blindly. Read the comments and edit as needed ❗
+### Clone and install
 ```bash
-# clone once
+# Clone (only needed once)
 git clone https://github.com/zoharsnir/cinnamon-focal-applet.git
 cd cinnamon-focal-applet
+
+# Install
 mkdir -p ~/.local/share/cinnamon/applets/focal@zoharsnir
 cp -r * ~/.local/share/cinnamon/applets/focal@zoharsnir/
 
-# then: right-click panel -> Applets -> enable "Focal"
+# Add to panel
+# 👉 GUI: Right-click panel -> Applets -> enable "Focal"
 ```
 
-To pick up local code changes, re-sync the folder and reload Cinnamon (run from the repo root):
+### Update and reload after code changes
 
 ```bash
+# Optional:  uncomment next line to delete user setting
+# rm -rf ~/.local/share/cinnamon/applets/focal@zoharsnir
+
+# Delete, recopy
 rm -rf ~/.local/share/cinnamon/applets/focal@zoharsnir
 mkdir -p ~/.local/share/cinnamon/applets/focal@zoharsnir
 cp -r * ~/.local/share/cinnamon/applets/focal@zoharsnir/
-```
 
-Reload Cinnamon (`Alt+F2`, `r`, `Enter`) after code changes.
+# Reload - use only one by uncommenting it
+## Reload applet (fastest)
+dbus-send --session --dest=org.Cinnamon.LookingGlass --type=method_call /org/Cinnamon/LookingGlass org.Cinnamon.LookingGlass.ReloadExtension string:'focal@zoharsnir' string:'APPLET'
+## Reload cinnamon (a bit more extreme but needed. Equivalent to Alt+F2, r, Enter)
+#gdbus call --session --dest org.Cinnamon --object-path /org/Cinnamon --method org.Cinnamon.Eval "global.reexec_self();"
+```
 
 ## License
 
