@@ -4,6 +4,7 @@ __pycache__/
 # Local-only (dev tools/scratch, never pushed)
 redeploy.sh
 scratchpad
+AGENT_NOTES.md
 
 # Local record, dormant
 archive/
