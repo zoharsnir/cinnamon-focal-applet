@@ -1,5 +1,17 @@
 # Focal - Cinnamon applet
 
+- [Focal - Cinnamon applet](#focal---cinnamon-applet)
+  - [Why this exists](#why-this-exists)
+    - [What this is not](#what-this-is-not)
+    - [Privacy](#privacy)
+  - [How to use it](#how-to-use-it)
+    - [What should the text be?](#what-should-the-text-be)
+    - [In Direct mode](#in-direct-mode)
+    - [In Calendar mode](#in-calendar-mode)
+  - [Layout](#layout)
+  - [Install (for local testing)](#install-for-local-testing)
+  - [License](#license)
+
 A simple panel text label you set yourself (optionally with a color) or point at your system calendar to show whatever event you're currently in.
 
 ## Why this exists
