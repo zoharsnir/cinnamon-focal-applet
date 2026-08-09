@@ -33,12 +33,6 @@ Event object shape:
     }
 
 TODO (left for the follow-up build in Claude Code):
-    - Timezone handling: query window is properly UTC-converted, and
-      UTC-stored event times are converted to local (see
-      _ical_time_to_local_datetime). Events in a specific named timezone
-      (neither UTC nor floating, e.g. an explicit "America/New_York") are
-      still treated as if their raw hour/minute were already local - not
-      yet handled.
     - Caching / error resilience if EDS is slow to answer.
     - Recurrence expansion edge cases (this draft relies on libecal's
       generate-instances, which should handle most of it, but hasn't
@@ -48,13 +42,14 @@ TODO (left for the follow-up build in Claude Code):
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 try:
     import gi
     gi.require_version("EDataServer", "1.2")
     gi.require_version("ECal", "2.0")
-    from gi.repository import EDataServer, ECal, GLib
+    gi.require_version("ICalGLib", "3.0")
+    from gi.repository import EDataServer, ECal, ICalGLib, GLib
 except Exception as e:  # pragma: no cover - environment-dependent
     print(json.dumps({"error": "eds-bindings-unavailable", "detail": str(e)}), file=sys.stdout)
     sys.exit(0)
@@ -96,19 +91,33 @@ def _events_in_window(client, start_dt, end_dt):
     return components
 
 
-def _ical_time_to_local_datetime(t):
+def _ical_time_to_local_datetime(t, tzid):
     dt = datetime(t.get_year(), t.get_month(), t.get_day(), t.get_hour(), t.get_minute())
+    if t.is_date():
+        return dt
     try:
-        # Events from synced calendars (e.g. Google Calendar via GNOME Online
-        # Accounts) are commonly stored in UTC - if we don't convert, we'd
-        # treat the UTC hour/minute as if it were already local, same class
-        # of bug as the query-window one above. Skip all-day events (date
-        # only, no real time-of-day) - converting those would shift them
-        # onto the wrong calendar day for timezones behind/ahead of UTC.
-        if not t.is_date() and t.is_utc():
+        if t.is_utc():
+            # Events from synced calendars (e.g. Google Calendar via GNOME
+            # Online Accounts) are commonly stored in UTC - if we don't
+            # convert, we'd treat the UTC hour/minute as if it were already
+            # local.
             dt = dt.replace(tzinfo=timezone.utc).astimezone().replace(tzinfo=None)
+        elif tzid:
+            # Named timezone (e.g. "America/New_York") - the tzid lives on
+            # the property, not on t itself (t.get_tzid() is always None).
+            # Resolved against libical's builtin tzdata rather than the
+            # calendar client's get_timezone_sync(), which only knows about
+            # zones already registered on that connection (empty on a
+            # fresh one) and silently falls back to UTC instead of failing.
+            tz = ICalGLib.Timezone.get_builtin_timezone(tzid)
+            if tz:
+                offset_seconds, _is_daylight = tz.get_utc_offset(t)
+                utc_dt = dt.replace(tzinfo=timezone.utc) - timedelta(seconds=offset_seconds)
+                dt = utc_dt.astimezone().replace(tzinfo=None)
+        # else: floating time (no TZID, not UTC) - raw digits are already
+        # correct, no conversion needed.
     except AttributeError:
-        pass  # is_utc()/is_date() unavailable on this binding - leave as-is
+        pass  # relevant methods unavailable on this binding - leave as-is
     return dt
 
 
@@ -138,9 +147,9 @@ def _comp_to_event(comp, color=None):
     start_value = dtstart.get_value() if dtstart else None
     end_value = dtend.get_value() if dtend else None
     if start_value:
-        start_iso = _ical_time_to_local_datetime(start_value).isoformat()
+        start_iso = _ical_time_to_local_datetime(start_value, dtstart.get_tzid()).isoformat()
     if end_value:
-        end_iso = _ical_time_to_local_datetime(end_value).isoformat()
+        end_iso = _ical_time_to_local_datetime(end_value, dtend.get_tzid()).isoformat()
 
     return {
         "summary": summary,

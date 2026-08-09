@@ -26,6 +26,102 @@ Execution steps + expected result only. Install/reload per [README.md](README.md
 9. Open popup while in Calendar mode. **Expect:** no text entry, both color rows present.
 10. In Settings, pick a specific calendar from the dropdown. **Expect:** only that calendar's events show on the panel.
 11. In Settings, pick "System Default (...)". **Expect:** reverts to showing events from the system default calendar.
+12. Run the named-timezone script below (set `CALENDAR_UID` in it first if not `system-calendar`). **Expect:** prints `PASS`. If it warns about crossing midnight, run it again.
+
+```bash
+python3 - <<'PYEOF'
+import gi
+gi.require_version("EDataServer", "1.2")
+gi.require_version("ECal", "2.0")
+gi.require_version("ICalGLib", "3.0")
+from gi.repository import EDataServer, ECal, ICalGLib
+
+import sys, uuid
+sys.path.insert(0, "helper")
+import calendar_helper as ch
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+CALENDAR_UID = "system-calendar"
+TZID = "Europe/London"  # real, heavily-used, DST-aware zone - a hand-rolled/
+                         # custom TZID isn't reliably resolved
+
+registry = EDataServer.SourceRegistry.new_sync(None)
+source = registry.ref_source(CALENDAR_UID)
+client = ch._open_client(source)
+
+now_local = datetime.now().astimezone()
+raw_start = (now_local + timedelta(minutes=2)).replace(tzinfo=None, second=0, microsecond=0)
+raw_end = raw_start + timedelta(minutes=15)
+# Independently computed via Python's own system tzdata (zoneinfo), not
+# libical's bundled copy - a cross-check, not a reimplementation of what
+# Focal itself does.
+expected_local = raw_start.replace(tzinfo=ZoneInfo(TZID)).astimezone(now_local.tzinfo).replace(tzinfo=None)
+
+if expected_local.date() != raw_start.date():
+    print("WARNING: expected time crosses midnight - re-run this later/earlier so it stays today.")
+
+def fmt_dt(dt):
+    return dt.strftime("%Y%m%dT%H%M%S")
+
+summary = f"Focal named-timezone test {uuid.uuid4().hex[:8]}"
+ics = f"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Focal//named-tz-test//EN
+CALSCALE:GREGORIAN
+BEGIN:VTIMEZONE
+TZID:{TZID}
+BEGIN:DAYLIGHT
+DTSTART:19700329T010000
+TZOFFSETFROM:+0000
+TZOFFSETTO:+0100
+TZNAME:BST
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU
+END:DAYLIGHT
+BEGIN:STANDARD
+DTSTART:19701025T020000
+TZOFFSETFROM:+0100
+TZOFFSETTO:+0000
+TZNAME:GMT
+RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:{uuid.uuid4()}@focal-test
+DTSTAMP:{datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")}
+SUMMARY:{summary}
+DTSTART;TZID={TZID}:{fmt_dt(raw_start)}
+DTEND;TZID={TZID}:{fmt_dt(raw_end)}
+END:VEVENT
+END:VCALENDAR
+"""
+
+vcal = ICalGLib.Component.new_from_string(ics)
+vevent = vcal.get_first_component(ICalGLib.ComponentKind.VEVENT_COMPONENT)
+
+success, created_uid = client.create_object_sync(vevent, ECal.OperationFlags.NONE, None)
+if not success:
+    print("FAIL: could not create test event")
+    sys.exit(1)
+
+try:
+    _, comps = client.get_object_list_as_comps_sync("#t", None)
+    match = next((c for c in comps if (c.get_summary().get_value() if c.get_summary() else "") == summary), None)
+
+    if match is None:
+        print("FAIL: created event not found via query")
+    else:
+        ev = ch._comp_to_event(match)
+        actual = datetime.fromisoformat(ev["start_iso"])
+        print(f"Raw written clock-time: {raw_start.strftime('%H:%M')}")
+        print(f"Expected (per system tzdata): {expected_local.strftime('%H:%M')}")
+        print(f"calendar_helper.py computed: {actual.strftime('%Y-%m-%d %H:%M')}")
+        print("PASS" if actual.replace(second=0, microsecond=0) == expected_local.replace(second=0, microsecond=0) else "FAIL: mismatch")
+finally:
+    ok = client.remove_object_sync(created_uid, None, ECal.ObjModType.ALL, ECal.OperationFlags.NONE, None)
+    print(f"Cleanup: removed test event ({'ok' if ok else 'FAILED - remove manually'})")
+PYEOF
+```
 
 ## Right-click menu
 
