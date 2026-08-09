@@ -462,8 +462,11 @@ class FocalApplet extends Applet.TextIconApplet {
     // a standard Applet base-class method for panel hover text). Truncation
     // is applied only to what's actually shown on the panel, after the
     // tooltip is set, so hovering always reveals the whole thing.
-    _setLabel(text) {
-        this.set_applet_tooltip(text);
+    // tooltipText lets callers show a differently-formatted tooltip than the
+    // panel label (e.g. Calendar mode's Until/Remaining on their own lines -
+    // see issue #1); defaults to the panel text when omitted.
+    _setLabel(text, tooltipText) {
+        this.set_applet_tooltip(tooltipText !== undefined ? tooltipText : text);
 
         const maxLength = this.settings.getValue("max-text-length") || 0;
         if (maxLength > 0 && text.length > maxLength) {
@@ -617,33 +620,62 @@ class FocalApplet extends Applet.TextIconApplet {
         return options;
     }
 
+    // Computes the "Until <time>" / "Remaining <duration>" strings for the
+    // current event, independent of the show-event-end-time/show-time-remaining
+    // switches - callers decide whether/how to include them. Either can be
+    // null (no end time on the event, or it's already ended).
+    _untilRemainingParts(ev) {
+        const endDate = ev.end_iso ? new Date(ev.end_iso) : null;
+        if (!endDate) {
+            return { until: null, remaining: null };
+        }
+
+        const until = "Until " + endDate.toLocaleTimeString([], this._timeFormatOptions());
+
+        const remainingMinutes = Math.floor((endDate.getTime() - Date.now()) / 60000);
+        let remaining = null;
+        if (remainingMinutes > 0) {
+            const hours = Math.floor(remainingMinutes / 60);
+            const minutes = remainingMinutes % 60;
+            const duration = hours > 0 ? (hours + "h, " + minutes + "m") : (minutes + "m");
+            remaining = "Remaining " + duration;
+        }
+
+        return { until, remaining };
+    }
+
     // Appends " | Until <time>" and/or " | Remaining <duration>" to the
     // current event's summary, per their respective switches. Only applies
     // to the current event (not the dimmed "upcoming" fallback) - "until"/
     // "remaining" don't make sense for something that hasn't started yet.
     _formatCurrentEventLabel(ev) {
         let label = ev.summary || "";
-        const endDate = ev.end_iso ? new Date(ev.end_iso) : null;
-        if (!endDate) {
-            return label;
+        const { until, remaining } = this._untilRemainingParts(ev);
+
+        if (this.settings.getValue("show-event-end-time") && until) {
+            label += " | " + until;
         }
 
-        if (this.settings.getValue("show-event-end-time")) {
-            const timeStr = endDate.toLocaleTimeString([], this._timeFormatOptions());
-            label += " | Until " + timeStr;
-        }
-
-        if (this.settings.getValue("show-time-remaining")) {
-            const remainingMinutes = Math.floor((endDate.getTime() - Date.now()) / 60000);
-            if (remainingMinutes > 0) {
-                const hours = Math.floor(remainingMinutes / 60);
-                const minutes = remainingMinutes % 60;
-                const duration = hours > 0 ? (hours + "h, " + minutes + "m") : (minutes + "m");
-                label += " | Remaining " + duration;
-            }
+        if (this.settings.getValue("show-time-remaining") && remaining) {
+            label += " | " + remaining;
         }
 
         return label;
+    }
+
+    // Tooltip for the current event: summary / Until / Remaining each on
+    // their own line, always included when computable regardless of the
+    // panel's show-event-end-time/show-time-remaining switches (issue #1).
+    _formatCurrentEventTooltip(ev) {
+        const lines = [ev.summary || ""];
+        const { until, remaining } = this._untilRemainingParts(ev);
+        if (until) {
+            lines.push(until);
+        }
+        if (remaining) {
+            lines.push(remaining);
+        }
+        return lines.join("\n");
     }
 
     _onCalendarResult(stdout, stderr) {
@@ -664,7 +696,7 @@ class FocalApplet extends Applet.TextIconApplet {
             const ev = data.current;
             const useOwnColor = ev.color && !this.settings.getValue("override-event-color");
             const color = (useOwnColor ? ev.color : null) || this.settings.getValue("default-event-color") || "rgb(255,255,255)";
-            this._setLabel(this._formatCurrentEventLabel(ev));
+            this._setLabel(this._formatCurrentEventLabel(ev), this._formatCurrentEventTooltip(ev));
             this._setPanelStyle(color, "rgba(0,0,0,0)");
         } else if (data.next && this.settings.getValue("show-upcoming-fallback")) {
             const ev = data.next;
