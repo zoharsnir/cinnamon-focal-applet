@@ -1,6 +1,7 @@
 # Focal - Cinnamon applet
 
 - [Focal - Cinnamon applet](#focal---cinnamon-applet)
+  - [Screenshots](#screenshots)
   - [Why this exists](#why-this-exists)
     - [What this is not](#what-this-is-not)
     - [Privacy](#privacy)
@@ -16,6 +17,26 @@
   - [License](#license)
 
 A simple panel text label you set yourself (optionally with a color) or point at your system calendar to show whatever event you're currently in.
+
+## Screenshots
+
+Panel, Direct mode and Calendar mode:
+
+![Panel - Direct mode](screenshots/Panel-Direct-Mode.png)
+![Panel - Calendar mode](screenshots/Panel-Calendar-Mode.png)
+
+Popup, Direct mode and Calendar mode:
+
+![Popup - Direct mode](screenshots/Popup-Direct-Mode.png)
+![Popup - Calendar mode](screenshots/Popup-Calendar-Mode.png)
+
+Context menu:
+
+![Context menu](screenshots/Context-Menu.png)
+
+Settings:
+
+![Settings](screenshots/Settings.png)
 
 ## Why this exists
 
