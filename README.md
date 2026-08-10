@@ -43,7 +43,7 @@ Either way, the panel only ever shows your current focus - not your whole day, n
 
 ### Privacy
 
-No data collection, no telemetry, no network calls of any kind. In Calendar mode, the only outside communication is `calendar_helper.py` querying your system calendar (EDS) locally on your machine. The only things saved to disk are your applet settings and your current focus line/color, via Cinnamon's standard local settings storage - so it survives a restart, and nothing else is persisted or sent anywhere.
+No data collection, no telemetry, no external network calls of any kind. In Calendar mode, the only (local) network communication is `calendar_helper.py` querying your system calendar (EDS) locally on your machine. The only things saved to disk are your applet settings and your current focus line/color, via Cinnamon's standard local settings storage - so it survives a restart, and nothing else is persisted or sent anywhere.
 
 ## How to use it
 
