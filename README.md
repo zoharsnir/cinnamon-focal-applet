@@ -8,6 +8,7 @@
     - [What should the text be?](#what-should-the-text-be)
     - [In Direct mode](#in-direct-mode)
     - [In Calendar mode](#in-calendar-mode)
+    - [Integration (reference only)](#integration-reference-only)
   - [Layout](#layout)
   - [Install (for local testing)](#install-for-local-testing)
     - [Clone and install](#clone-and-install)
@@ -71,6 +72,18 @@ Plan your day (or whatever cycle you work in) ahead of time in your system calen
 
 Your events then show up on the applet as you move through them. If you stray, or plans just change, same principle as Direct mode: resist and get back on track, or make a conscious decision to change your plan and drag the blocks around in the calendar to reflect it.
 
+### Integration (reference only)
+
+It is possible to integrate with Focal and update its Focal text (or other settings) when in Direct mode.
+
+While this is outside the scope of Focal's features, the example below is added for reference in case in case someone finds it useful. One use case is running some arbitrary command that outputs a single line (i.e. external IP, service status) on an interval and have it update Focal to have it always displayed on your panel.
+
+The below command updates the Focal text to 'YOUR TEXT HERE' and refreshes the extension so the updated text is reflected immediately:
+
+```bash
+dbus-send --session --dest=org.Cinnamon --type=method_call /org/Cinnamon org.Cinnamon.Eval string:"let a = imports.ui.appletManager.getRunningInstancesForUuid('focal@zoharsnir')[0]; a.settings.setValue('custom-text', 'YOUR TEXT HERE'); a._refresh();"
+```
+
 ## Layout
 
 - [`metadata.json`](metadata.json) - applet identity/version info Cinnamon reads.
@@ -89,7 +102,9 @@ Your events then show up on the applet as you move through them. If you stray, o
 ## Install (for local testing)
 
 ❗ Don't copy paste blindly. Read the comments and edit as needed ❗
+
 ### Clone and install
+
 ```bash
 # Clone (only needed once)
 git clone https://github.com/zoharsnir/cinnamon-focal-applet.git
