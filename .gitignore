@@ -5,6 +5,7 @@ __pycache__/
 redeploy.sh
 scratchpad
 AGENT_NOTES.md
+publish-to-spice.sh
 
 # Local record, dormant
 archive/
