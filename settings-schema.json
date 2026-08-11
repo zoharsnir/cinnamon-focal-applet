@@ -79,10 +79,13 @@
     "dependency-value": "calendar"
   },
   "selected-calendar": {
-    "type": "entry",
+    "type": "combobox",
     "default": "",
-    "description": "Calendar to use (blank = your system's default calendar)",
-    "tooltip": "Only one calendar is ever used, never several. Leave blank to use your system's default calendar. To use a different one, paste its UID from calendar_helper.py --list-calendars.",
+    "options": {
+      "System Default": ""
+    },
+    "description": "Calendar to use",
+    "tooltip": "\"System Default\" always tracks whatever calendar your system currently considers the default (shown in parentheses) - if that changes, this follows automatically, no need to re-pick anything. The list is fetched once each time Focal (re)loads and appears here automatically - no need to reopen or reload Settings. If listing fails, an error entry appears here instead, with System Default kept as a working fallback.",
     "dependency": "mode",
     "dependency-value": "calendar"
   },

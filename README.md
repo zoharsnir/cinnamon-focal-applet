@@ -11,6 +11,7 @@
     - [In Calendar mode](#in-calendar-mode)
     - [Integration (reference only)](#integration-reference-only)
   - [Layout](#layout)
+  - [Contributing translations](#contributing-translations)
   - [Install (for local testing)](#install-for-local-testing)
     - [Clone and install](#clone-and-install)
     - [Update and reload after code changes](#update-and-reload-after-code-changes)
@@ -119,6 +120,16 @@ dbus-send --session --dest=org.Cinnamon --type=method_call /org/Cinnamon org.Cin
   testable from a terminal.
 - [`stylesheet.css`](stylesheet.css) - popup entry/swatch styling.
 - `icon.png` - applet icon shown in Cinnamon's Applets list.
+
+## Contributing translations
+
+User-facing strings are wrapped for translation via gettext (`po/` holds the translation files). To generate/update the translation template or test a translation locally, you need the upstream [`cinnamon-spices-makepot`](https://github.com/linuxmint/cinnamon-spices-applets) tool, which requires the `polib` Python package:
+
+```bash
+sudo apt install python3-polib
+```
+
+Not required for installing, using, or non-translation touching development. Only for working on translations.
 
 ## Install (for local testing)
 

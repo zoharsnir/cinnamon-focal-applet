@@ -5,7 +5,8 @@ __pycache__/
 redeploy.sh
 scratchpad
 AGENT_NOTES.md
-publish-to-spice.sh  # gitignored until tested and confirmed working - then track it
+# gitignored until tested and confirmed working - then track it
+publish-to-spice.sh
 
 # Local record, dormant
 archive/

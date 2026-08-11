@@ -8,10 +8,18 @@ const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const Mainloop = imports.mainloop;
 const Lang = imports.lang;
-const ByteArray = imports.byteArray;
+const Gettext = imports.gettext;
+imports.format; // side-effect only - patches in String.prototype.format for _("...").format(x)
 
+const UUID = "focal@zoharsnir";
 const HELPER_SCRIPT = "calendar_helper.py"; // lives next to applet.js, resolved via this.metadata.path
 const POLL_TIMEOUT_SECONDS = 15; // kill the helper subprocess if EDS hasn't answered by then
+
+Gettext.bindtextdomain(UUID, GLib.get_home_dir() + "/.local/share/locale");
+
+function _(text) {
+    return Gettext.dgettext(UUID, text);
+}
 
 const PRESET_COLORS = [
     "rgb(255,255,255)", // white
@@ -44,13 +52,14 @@ class FocalApplet extends Applet.TextIconApplet {
 
         this.set_applet_icon_path(this.metadata.path + "/icon.png");
 
-        this._uuid = "focal@zoharsnir";
+        this._uuid = UUID;
         this.instance_id = instance_id;
 
         this.settings = new Settings.AppletSettings(this, this._uuid, instance_id);
         this._bindSettings();
 
         this._calendarTimeoutId = null;
+        this._calendarListError = null; // set/cleared by _updateCalendarSchemaOptions's async result; appended to the panel tooltip in calendar mode
 
         this._buildPopup(orientation);
         this._buildContextMenu();
@@ -110,7 +119,7 @@ class FocalApplet extends Applet.TextIconApplet {
         if (mode === "direct") {
             this._entry = new St.Entry({
                 style_class: "focal-entry",
-                hint_text: "Type direct text..."
+                hint_text: _("Type direct text...")
             });
             this._entry.set_can_focus(true);
             this._entryText = this._entry.clutter_text;
@@ -140,7 +149,7 @@ class FocalApplet extends Applet.TextIconApplet {
             this._entryText = null;
         }
 
-        this._addSectionLabel("Text color");
+        this._addSectionLabel(_("Text color"));
         this._selectedColor = PRESET_COLORS[0];
         this._swatchButtons = this._buildSwatchRow(PRESET_COLORS, (color, button) => {
             this._selectedColor = color;
@@ -148,7 +157,7 @@ class FocalApplet extends Applet.TextIconApplet {
             this._previewColors();
         });
 
-        this._addSectionLabel("Background color");
+        this._addSectionLabel(_("Background color"));
         this._selectedBgColor = BG_PRESET_COLORS[0];
         this._bgSwatchButtons = this._buildSwatchRow(BG_PRESET_COLORS, (color, button) => {
             this._selectedBgColor = color;
@@ -164,7 +173,7 @@ class FocalApplet extends Applet.TextIconApplet {
         // PopupMenuItem - PopupMenuItem grabs keyboard focus on hover (for
         // arrow-key menu navigation), which steals focus from the text entry.
         const confirmItem = new PopupMenu.PopupBaseMenuItem({ reactive: false });
-        const confirmLabel = "Apply";
+        const confirmLabel = _("Apply");
         const confirmButton = new St.Button({ style_class: "focal-confirm-button", label: confirmLabel });
         confirmButton.connect("clicked", () => this._commitPopup());
         confirmItem.addActor(confirmButton, { expand: true, span: -1 });
@@ -279,14 +288,14 @@ class FocalApplet extends Applet.TextIconApplet {
     // selection lives in Preferences instead (see calendar_widget.py), not
     // here - this is just the quick mode switch.
     _buildContextMenu() {
-        this._directModeMenuItem = new PopupMenu.PopupMenuItem("Direct Mode");
+        this._directModeMenuItem = new PopupMenu.PopupMenuItem(_("Direct Mode"));
         this._directModeMenuItem.connect("activate", () => {
             this.settings.setValue("mode", "direct");
             this._refresh(); // belt-and-suspenders: force it even if the settings-changed binding is slow/doesn't fire from this code path
         });
         this._applet_context_menu.addMenuItem(this._directModeMenuItem);
 
-        this._calendarModeMenuItem = new PopupMenu.PopupMenuItem("Calendar Mode");
+        this._calendarModeMenuItem = new PopupMenu.PopupMenuItem(_("Calendar Mode"));
         this._calendarModeMenuItem.connect("activate", () => {
             this.settings.setValue("mode", "calendar");
             this._refresh();
@@ -307,8 +316,8 @@ class FocalApplet extends Applet.TextIconApplet {
 
     _updateContextMenu() {
         const mode = this.settings.getValue("mode");
-        this._directModeMenuItem.label.set_text((mode === "direct" ? "✓ " : "   ") + "Direct Mode");
-        this._calendarModeMenuItem.label.set_text((mode === "calendar" ? "✓ " : "   ") + "Calendar Mode");
+        this._directModeMenuItem.label.set_text((mode === "direct" ? "✓ " : "   ") + _("Direct Mode"));
+        this._calendarModeMenuItem.label.set_text((mode === "calendar" ? "✓ " : "   ") + _("Calendar Mode"));
     }
 
     _populateCalendarSubMenu(calendars) {
@@ -347,66 +356,79 @@ class FocalApplet extends Applet.TextIconApplet {
 
     // ---------- Calendar picker (Settings screen) ----------
 
-    // settings-schema.json's "custom" widget type is rejected outright by
-    // this Cinnamon build's JS-side settings validator (confirmed - it's a
-    // hard incompatibility, crashes the whole applet, not just this field),
-    // so a real live-populated dropdown isn't possible that way here.
-    // "combobox" works fine (already proven - it's what Mode uses), just
-    // needs its "options" populated statically at *some* point before
-    // Settings is opened. Solution: rewrite the deployed settings-schema.json
-    // on load, replacing selected-calendar's definition with a combobox
-    // whose options come straight from --list-calendars. Only runs once per
-    // applet load (calendars rarely change), not on every poll - reload the
-    // applet to pick up newly added/removed calendars.
+    // "custom" widget type is rejected outright by this Cinnamon build's
+    // JS-side settings validator (confirmed - it's a hard incompatibility,
+    // crashes the whole applet, not just this field), so a real dropdown
+    // here has to be a "combobox" (already proven fine - it's what Mode uses).
+    //
+    // Settings' own dialog (xlet-settings.py) never reads settings-schema.json
+    // directly - it only watches the per-instance merged settings file, and
+    // Cinnamon's AppletSettings only re-merges that file from
+    // settings-schema.json once, at construction time (checksummed, skipped
+    // entirely if unchanged). Rewriting settings-schema.json after that point
+    // (an earlier version of this code did exactly that) is invisible to
+    // Settings until the next full applet reload. settings.js exposes a
+    // live-updating API for exactly this instead: AppletSettings.setOptions()
+    // writes straight to the per-instance file Settings already watches, so
+    // changes show up within its own ~2s file-monitor debounce - reload or
+    // not, dialog open or not.
     _updateCalendarSchemaOptions() {
+        this.settings.setOptions("selected-calendar", { ["⏳ " + _("Listing calendars…")]: "" });
+
         const scriptPath = this.metadata.path + "/helper/" + HELPER_SCRIPT;
         try {
             let proc = Gio.Subprocess.new(["python3", scriptPath, "--list-calendars"], Gio.SubprocessFlags.STDOUT_PIPE);
             proc.communicate_utf8_async(null, null, (proc, res) => {
                 try {
                     let [, stdout] = proc.communicate_utf8_finish(res);
-                    this._writeCalendarComboOptions(JSON.parse(stdout));
+                    const data = JSON.parse(stdout);
+                    if (!Array.isArray(data)) {
+                        // calendar_helper.py's own error shape on failure:
+                        // {"error": "...", "detail": "..."} (e.g. EDS bindings
+                        // unavailable) - not a calendar list.
+                        throw new Error((data && (data.detail || data.error)) || "unexpected output from calendar_helper.py");
+                    }
+                    this._setCalendarComboOptions(data);
                 } catch (e) {
                     global.logError("focal: failed to list calendars for settings-schema options: " + e);
+                    this._setCalendarComboError(e);
                 }
             });
         } catch (e) {
             global.logError("focal: failed to spawn --list-calendars for settings-schema options: " + e);
+            this._setCalendarComboError(e);
         }
     }
 
-    _writeCalendarComboOptions(calendars) {
-        const schemaPath = this.metadata.path + "/settings-schema.json";
-        try {
-            const [ok, contents] = GLib.file_get_contents(schemaPath);
-            if (!ok) return;
-            const schema = JSON.parse(ByteArray.toString(contents));
+    // Two entries: the first matches the same "" value as normal System
+    // Default, so it stays selected and keeps calendar mode working via the
+    // system default calendar even while listing is broken. The second just
+    // surfaces the actual error for the user to read - it needs its own
+    // distinct (never actually assigned) value, not "", or the combo box's
+    // current-value matching picks it as "selected" instead of the fallback
+    // whenever two options share a value.
+    _setCalendarComboError(error) {
+        this.settings.setOptions("selected-calendar", {
+            ["⚠️ " + _("System Default (fallback - calendar list failed)")]: "",
+            [_("Error: %s").format(String(error))]: "__focal-calendar-error__"
+        });
+        this._calendarListError = String(error);
+        this._reapplyLabel();
+    }
 
-            const previousValue = schema["selected-calendar"] && schema["selected-calendar"]["default"];
+    _setCalendarComboOptions(calendars) {
+        const defaultCal = calendars.find((cal) => cal.is_default);
+        const defaultLabel = defaultCal ? _("System Default (%s)").format(defaultCal.name) : _("System Default");
 
-            const defaultCal = calendars.find((cal) => cal.is_default);
-            const defaultLabel = defaultCal ? ("System Default (" + defaultCal.name + ")") : "System Default";
+        const options = {};
+        options[defaultLabel] = "";
+        calendars.forEach((cal) => {
+            options[cal.name || cal.uid] = cal.uid;
+        });
 
-            const options = {};
-            options[defaultLabel] = "";
-            calendars.forEach((cal) => {
-                options[cal.name || cal.uid] = cal.uid;
-            });
-
-            schema["selected-calendar"] = {
-                "type": "combobox",
-                "default": previousValue || "",
-                "options": options,
-                "description": "Calendar to use",
-                "tooltip": "\"System Default\" always tracks whatever calendar your system currently considers the default (shown in parentheses) - if that changes, this follows automatically, no need to re-pick anything. This list refreshes once per applet reload, not live.",
-                "dependency": "mode",
-                "dependency-value": "calendar"
-            };
-
-            GLib.file_set_contents(schemaPath, JSON.stringify(schema, null, 2));
-        } catch (e) {
-            global.logError("focal: failed to update settings-schema.json with calendar options: " + e);
-        }
+        this.settings.setOptions("selected-calendar", options);
+        this._calendarListError = null;
+        this._reapplyLabel();
     }
 
     // ---------- Rendering ----------
@@ -465,8 +487,19 @@ class FocalApplet extends Applet.TextIconApplet {
     // tooltipText lets callers show a differently-formatted tooltip than the
     // panel label (e.g. Calendar mode's Until/Remaining on their own lines -
     // see issue #1); defaults to the panel text when omitted.
+    //
+    // Stashes its raw (pre-error-suffix) arguments so _reapplyLabel() can
+    // reformat the same content later (e.g. once a calendar-listing error
+    // comes in or clears) without needing a fresh poll/render.
     _setLabel(text, tooltipText) {
-        this.set_applet_tooltip(tooltipText !== undefined ? tooltipText : text);
+        this._lastLabelText = text;
+        this._lastLabelTooltip = tooltipText;
+
+        let tooltip = tooltipText !== undefined ? tooltipText : text;
+        if (this.settings.getValue("mode") === "calendar" && this._calendarListError) {
+            tooltip += "\n⚠️ " + _("Calendar list unavailable: %s").format(this._calendarListError);
+        }
+        this.set_applet_tooltip(tooltip);
 
         const maxLength = this.settings.getValue("max-text-length") || 0;
         if (maxLength > 0 && text.length > maxLength) {
@@ -476,13 +509,23 @@ class FocalApplet extends Applet.TextIconApplet {
         this.set_applet_label(text);
     }
 
+    // Reformats whatever was last shown (via the stashed _lastLabelText/
+    // _lastLabelTooltip from _setLabel) so a change to _calendarListError is
+    // reflected immediately, instead of waiting for the next natural
+    // poll/render to happen to pick it up.
+    _reapplyLabel() {
+        if (this._lastLabelText !== undefined) {
+            this._setLabel(this._lastLabelText, this._lastLabelTooltip);
+        }
+    }
+
     // Shown once, immediately, when entering Calendar mode - before the first
     // poll has had a chance to come back - so the panel doesn't sit blank
     // while waiting. _calendarHasRendered (set in _pollCalendarOnce's settle())
     // stops it from re-flashing on every later _refresh() while already
     // polling (settings changes, popup close, etc. all call _refresh()).
     _renderCalendarFetching() {
-        this._setLabel("Fetching from calendar…");
+        this._setLabel(_("Fetching from calendar…"));
         this._clearPanelStyle();
     }
 
@@ -630,15 +673,15 @@ class FocalApplet extends Applet.TextIconApplet {
             return { until: null, remaining: null };
         }
 
-        const until = "Until " + endDate.toLocaleTimeString([], this._timeFormatOptions());
+        const until = _("Until %s").format(endDate.toLocaleTimeString([], this._timeFormatOptions()));
 
         const remainingMinutes = Math.floor((endDate.getTime() - Date.now()) / 60000);
         let remaining = null;
         if (remainingMinutes > 0) {
             const hours = Math.floor(remainingMinutes / 60);
             const minutes = remainingMinutes % 60;
-            const duration = hours > 0 ? (hours + "h, " + minutes + "m") : (minutes + "m");
-            remaining = "Remaining " + duration;
+            const duration = hours > 0 ? _("%dh, %dm").format(hours, minutes) : _("%dm").format(minutes);
+            remaining = _("Remaining %s").format(duration);
         }
 
         return { until, remaining };
@@ -680,7 +723,15 @@ class FocalApplet extends Applet.TextIconApplet {
 
     _onCalendarResult(stdout, stderr) {
         if (!stdout) {
-            this._renderCalendarEmpty();
+            // calendar_helper.py always prints valid JSON on success (even
+            // {"current": null, "next": null} for a genuinely empty
+            // calendar) - empty stdout only happens when the subprocess
+            // itself failed to run (e.g. script missing/not executable),
+            // never as a legitimate "no events" result. Treat it as an
+            // error, not as "No active event" - that would hide a real
+            // failure behind what looks like a normal empty state.
+            global.logError("focal: calendar helper produced no output" + (stderr ? (" - stderr: " + stderr) : ""));
+            this._renderCalendarError();
             return;
         }
         let data;
@@ -705,7 +756,7 @@ class FocalApplet extends Applet.TextIconApplet {
             // which is hardcoded to 12h/AM-PM Python-side with no awareness of
             // the system's clock-format setting) so it's consistent with "Until".
             const time = ev.start_iso ? new Date(ev.start_iso).toLocaleTimeString([], this._timeFormatOptions()) : "";
-            this._setLabel("Upcoming " + time + " " + (ev.summary || ""));
+            this._setLabel(_("Upcoming %s %s").format(time, ev.summary || ""));
             this._setPanelStyle(color, "rgba(0,0,0,0)");
         } else {
             this._renderCalendarEmpty();
@@ -714,14 +765,14 @@ class FocalApplet extends Applet.TextIconApplet {
 
     _renderCalendarEmpty() {
         const text = this.settings.getValue("show-upcoming-fallback")
-            ? "No active or upcoming events"
-            : "No active event";
+            ? _("No active or upcoming events")
+            : _("No active event");
         this._setLabel(text);
         this._clearPanelStyle();
     }
 
     _renderCalendarError() {
-        this._setLabel("Calendar error");
+        this._setLabel(_("Calendar error"));
         this._clearPanelStyle();
     }
 
