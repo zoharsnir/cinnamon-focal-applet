@@ -320,26 +320,6 @@ class FocalApplet extends Applet.TextIconApplet {
         this._calendarModeMenuItem.label.set_text((mode === "calendar" ? "✓ " : "   ") + _("Calendar Mode"));
     }
 
-    _populateCalendarSubMenu(calendars) {
-        this._calendarSubMenu.menu.removeAll();
-        const selected = this.settings.getValue("selected-calendar") || "";
-
-        const defaultItem = new PopupMenu.PopupMenuItem((selected === "" ? "✓ " : "   ") + "System Default");
-        defaultItem.connect("activate", () => {
-            this.settings.setValue("selected-calendar", "");
-        });
-        this._calendarSubMenu.menu.addMenuItem(defaultItem);
-
-        calendars.forEach((cal) => {
-            const isSelected = cal.uid === selected;
-            const item = new PopupMenu.PopupMenuItem((isSelected ? "✓ " : "   ") + cal.name);
-            item.connect("activate", () => {
-                this.settings.setValue("selected-calendar", cal.uid);
-            });
-            this._calendarSubMenu.menu.addMenuItem(item);
-        });
-    }
-
     // ---------- Hotkey ----------
 
     _registerHotkey() {
